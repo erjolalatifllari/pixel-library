@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\LibraryController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -24,10 +25,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-Route::get('/library', function () {
-    return Inertia::render('Library', [
-        'userBooks' => []
-    ]);
-})->middleware(['auth', 'verified'])->name('library');
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/library', [LibraryController::class, 'index'])->name('library');
+    Route::post('/library/search', [LibraryController::class, 'search'])->name('library.search');
+    Route::post('/library/add', [LibraryController::class, 'add'])->name('library.add');
+});
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

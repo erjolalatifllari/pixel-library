@@ -28,11 +28,21 @@ class LibraryController extends Controller
 
         $response = Http::get("https://openlibrary.org/search.json", [
             'q' => $request->input('query'),
-            'fields' => 'key,title,author_name',
+            'fields' => 'key,title,author_name,cover_i,cover_edition_key',
             'limit' => 10,
         ]);
 
-        $results = $response->successful() ? $response->json('docs') : [];
+        $results = $response->successful()
+            ? collect($response->json('docs', []))->map(function (array $book) {
+                $book['cover_url'] = isset($book['cover_edition_key'])
+                    ? "https://covers.openlibrary.org/b/olid/{$book['cover_edition_key']}-M.jpg"
+                    : (isset($book['cover_i'])
+                        ? "https://covers.openlibrary.org/b/id/{$book['cover_i']}-M.jpg"
+                        : null);
+
+                return $book;
+            })->values()->all()
+            : [];
 
         return back()->with('searchBooks', $results);
     }
@@ -43,6 +53,7 @@ class LibraryController extends Controller
             'olid' => 'required|string',
             'title' => 'required|string',
             'author' => 'nullable|string',
+            'cover_url' => 'nullable|url',
             'status' => 'required|in:owned,wishlist',
         ]);
 
@@ -61,7 +72,7 @@ class LibraryController extends Controller
                 'olid' => $olid,
                 'title' => $request->input('title'),
                 'author' => $request->input('author'),
-                'cover_url' => "https://covers.openlibrary.org/b/olid/{$olid}-M.jpg",
+                'cover_url' => $request->input('cover_url'),
             ]);
         }
 

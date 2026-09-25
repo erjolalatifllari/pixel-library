@@ -14,7 +14,11 @@ return new class extends Migration
         Schema::create('user_books', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
+
+            $table->string('olid');
+
             $table->foreign('olid')->references('olid')->on('books')->onDelete('cascade');
+
             $table->enum('status', ['owned', 'wishlist']);
             $table->timestamps();
 

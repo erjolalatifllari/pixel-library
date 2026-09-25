@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\LibraryController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;

@@ -137,12 +137,17 @@ php artisan migrate:fresh
 - `vite.config.js` configures the frontend build.
 - `tailwind.config.js` and `postcss.config.js` configure the CSS toolchain.
 
-## Using the backend from React
+## Using Backend Data in the Frontend
 
-This project uses Inertia.js instead of a separate JSON API. Laravel renders an
-Inertia page and sends backend data as props. React receives those props in the
-page component, and `useForm` or `router` from `@inertiajs/react` sends requests
-back to Laravel.
+This project uses Laravel, Inertia.js, and React. React does not access SQLite
+directly. The data flow is:
+
+1. A route calls a Laravel controller.
+2. The controller reads or changes database records with Eloquent.
+3. `Inertia::render()` sends records to React as page props.
+4. React displays the props and sends actions back through Inertia.
+
+Use this pattern whenever a frontend feature needs backend data.
 
 ### Send database records to a page
 
@@ -153,7 +158,6 @@ Load records in a controller and pass them to `Inertia::render`:
 
 namespace App\Http\Controllers;
 
-use App\Models\Book;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
@@ -180,8 +184,8 @@ Route::get('/library', [LibraryController::class, 'index'])
 	->name('library');
 ```
 
-Read the prop in the React page. Eloquent models are serialized by Inertia into
-normal JavaScript objects:
+Eloquent models are serialized by Inertia into JavaScript objects. Read the prop
+in the React page:
 
 ```jsx
 import { Head } from '@inertiajs/react';
@@ -194,6 +198,9 @@ export default function Library({ userBooks = [] }) {
 			<ul>
 				{userBooks.map((book) => (
 					<li key={book.olid}>
+						{book.cover_url && (
+							<img src={book.cover_url} alt={`Cover of ${book.title}`} />
+						)}
 						{book.title} by {book.author || 'Unknown author'}
 					</li>
 				))}
@@ -203,10 +210,11 @@ export default function Library({ userBooks = [] }) {
 }
 ```
 
-### Create and update data from React
+### Send data from React to the backend
 
-Use `useForm` for forms that submit to Laravel. The form data keys must match
-the validation rules in the controller:
+Use `useForm` for forms that submit to Laravel. The request keys must match the
+validation rules in the controller. The library add endpoint accepts `olid`,
+`title`, `author`, `cover_url`, and `status`:
 
 ```jsx
 import { useForm } from '@inertiajs/react';
@@ -216,6 +224,7 @@ export default function AddBookForm() {
 		olid: '',
 		title: '',
 		author: '',
+		cover_url: '',
 		status: 'owned',
 	});
 
@@ -243,6 +252,11 @@ export default function AddBookForm() {
 				value={data.author}
 				onChange={(event) => setData('author', event.target.value)}
 				placeholder="Author"
+			/>
+			<input
+				value={data.cover_url}
+				onChange={(event) => setData('cover_url', event.target.value)}
+				placeholder="Cover URL"
 			/>
 			<select
 				value={data.status}
@@ -278,6 +292,7 @@ router.post(route('library.add'), {
 	olid: 'OL123M',
 	title: 'A book',
 	author: 'An author',
+	cover_url: 'https://covers.openlibrary.org/b/id/123-M.jpg',
 	status: 'wishlist',
 });
 ```
@@ -300,8 +315,8 @@ function search(event) {
 }
 ```
 
-The backend validates `query`, calls Open Library, and redirects back with a
-`searchBooks` flash value:
+The backend validates `query`, calls Open Library, adds a `cover_url` to each
+result, and redirects back with a `searchBooks` flash value:
 
 ```php
 Route::post('/library/search', [LibraryController::class, 'search'])
@@ -332,6 +347,23 @@ import { usePage } from '@inertiajs/react';
 const { flash } = usePage().props;
 const searchBooks = flash?.searchBooks ?? [];
 ```
+
+Search results contain `key`, `title`, `author_name`, and `cover_url`. Pass the
+selected result back to the add endpoint:
+
+```jsx
+router.post(route('library.add'), {
+	olid: book.key,
+	title: book.title,
+	author: book.author_name?.[0] ?? null,
+	cover_url: book.cover_url,
+	status: 'owned',
+});
+```
+
+Keep database queries, validation, external API calls, and authorization in
+Laravel. React should receive props and send user actions through named Inertia
+routes.
 
 ### Database relationships
 
